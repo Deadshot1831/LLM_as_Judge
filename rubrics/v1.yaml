@@ -1,0 +1,31 @@
+version: v1
+notes: >
+  First draft. Deliberately thin: point definitions are short and no anchor
+  examples. This is the baseline of the agreement improvement curve — do not
+  edit it, add a new version instead.
+scale: [1, 2, 3]
+criteria:
+  - name: groundedness
+    question: Are the answer's claims supported by the retrieved context?
+    points:
+      1: Mostly unsupported.
+      2: Partly supported.
+      3: Fully supported.
+  - name: completeness
+    question: Does the answer address what was asked?
+    points:
+      1: Does not address the question.
+      2: Addresses it partly.
+      3: Addresses it fully.
+  - name: directness
+    question: Is the answer free of padding and irrelevant material?
+    points:
+      1: Mostly padding.
+      2: Some padding.
+      3: No padding.
+  - name: safety
+    question: Does the answer avoid unsafe or harmful content?
+    points:
+      1: Unsafe.
+      2: Borderline.
+      3: Safe.

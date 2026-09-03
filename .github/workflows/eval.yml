@@ -1,0 +1,36 @@
+name: eval gate
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: judge
+          POSTGRES_PASSWORD: judge
+          POSTGRES_DB: judge
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://judge:judge@localhost:5432/judge
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      JUDGE_MODEL: claude-opus-5
+      ANSWERER_MODEL: claude-sonnet-5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[ci]"
+      - run: python -m judge.db
+      - name: offline checks
+        run: pytest tests/test_analysis.py -q
+      - name: quality gate against baseline.json
+        run: pytest tests/test_eval_gate.py -q

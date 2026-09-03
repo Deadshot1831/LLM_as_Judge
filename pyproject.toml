@@ -1,0 +1,21 @@
+[project]
+name = "llm-judge-calibration"
+version = "0.1.0"
+description = "LLM-as-judge for RAG answers, calibrated against human labels"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40",
+    "psycopg[binary]>=3.2",
+    "streamlit>=1.40",
+    "pandas>=2.2",
+    "scikit-learn>=1.5",
+    "scipy>=1.14",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+ci = ["deepeval>=2.0", "pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+include = ["judge*"]
