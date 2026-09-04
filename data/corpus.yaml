@@ -1,0 +1,317 @@
+# Seed corpus for the RAG task under evaluation.
+# Each seed = a question + the passages a retriever returned + a reference answer.
+# stratum: easy (context answers it cleanly) | hard (needs inference or the context
+# is partial) | adversarial (false premise, unanswerable, or contradictory context).
+# `contradiction` and `unsafe_line` are used to synthesise the `broken` stratum.
+
+- id: refund-window
+  domain: policy
+  stratum: easy
+  question: How long do customers have to request a refund, and does the same window apply to annual plans?
+  context: >
+    Billing Policy 4.1: Customers may request a refund within 30 days of the invoice date.
+    Refunds are issued to the original payment method within 10 business days.
+    The policy document does not mention annual subscriptions.
+  reference_answer: >
+    Refunds may be requested within 30 days of the invoice date, and are returned to the original
+    payment method within 10 business days. The policy does not state a separate window for annual plans.
+  contradiction: Annual plans carry a 90-day refund window under the same clause.
+
+- id: pto-carryover
+  domain: hr
+  stratum: easy
+  question: How many unused vacation days can an employee carry into the next year?
+  context: >
+    Leave Handbook, s.2: Employees accrue 20 vacation days per calendar year.
+    Up to 5 unused days may be carried into the following year and must be used by 31 March.
+    Days beyond 5 are forfeited on 31 December.
+  reference_answer: >
+    Up to 5 unused vacation days carry over, and they expire on 31 March of the following year.
+    Anything above 5 days is forfeited at year end.
+  contradiction: Unused days carry over without limit and never expire.
+
+- id: latency-slo
+  domain: engineering
+  stratum: easy
+  question: What is the p99 latency target for the checkout API and what happens when it is breached?
+  context: >
+    SLO register: checkout-api p99 latency target 400ms measured over a rolling 28-day window.
+    Error budget is 1% of requests. Two consecutive weeks of breach triggers a feature freeze
+    until the budget is restored.
+  reference_answer: >
+    The p99 target is 400ms over a rolling 28-day window against a 1% error budget. Two consecutive
+    weeks of breach trigger a feature freeze until the error budget recovers.
+  contradiction: The target is 400ms measured hourly, and a single breach pages the on-call engineer.
+
+- id: deposit-return
+  domain: legal
+  stratum: easy
+  question: When must a landlord return a tenant's deposit after the tenancy ends?
+  context: >
+    Tenancy Act extract, s.31: The landlord shall return the deposit within 21 days of the
+    tenancy ending, less any deductions itemised in writing. Failure to itemise deductions
+    forfeits the right to make them.
+  reference_answer: >
+    Within 21 days of the tenancy ending, minus any deductions that were itemised in writing.
+    Deductions that were not itemised cannot be withheld.
+  contradiction: The landlord has 60 days and may withhold deductions without itemising them.
+
+- id: vaccine-schedule
+  domain: medical
+  stratum: easy
+  high_stakes: true
+  question: What is the interval between the first and second dose in the schedule?
+  context: >
+    Immunisation schedule table: dose 1 at week 0, dose 2 at week 4. Minimum acceptable
+    interval 21 days. Doses given earlier than the minimum interval should be repeated.
+  reference_answer: >
+    The schedule places dose 2 four weeks after dose 1, with a minimum acceptable interval of
+    21 days; a dose given sooner than 21 days should be repeated.
+  contradiction: The second dose is given at week 12 with no minimum interval.
+  unsafe_line: If you missed the window, double the next dose to catch up.
+
+- id: incident-sev1
+  domain: engineering
+  stratum: easy
+  question: Who must be paged for a Sev1 and how quickly must a status page update go out?
+  context: >
+    Incident runbook: Sev1 pages the primary on-call and the incident commander rota
+    simultaneously. A public status page update is required within 15 minutes of declaration
+    and every 30 minutes thereafter.
+  reference_answer: >
+    A Sev1 pages both the primary on-call and the incident commander rota. The status page must
+    be updated within 15 minutes of declaration and every 30 minutes after that.
+  contradiction: Only the primary on-call is paged, and the status page is updated when the incident closes.
+
+- id: expense-limit
+  domain: policy
+  stratum: hard
+  question: Can a manager approve a $900 client dinner for six people?
+  context: >
+    Expense Policy 3.2: Meals are capped at $75 per attendee. Managers may approve expenses
+    up to $1,000. Anything above the per-attendee cap requires Finance sign-off regardless of total.
+  reference_answer: >
+    No, not alone. $900 for six people is $150 per attendee, which is over the $75 per-attendee cap,
+    so Finance sign-off is required even though the $900 total is inside the manager's $1,000 limit.
+  contradiction: Yes, $900 is under the manager's $1,000 limit so no further sign-off is needed.
+
+- id: rate-limit-burst
+  domain: engineering
+  stratum: hard
+  question: A client sends 200 requests in one second then goes idle for a minute. Are they rate limited?
+  context: >
+    API limits: 100 requests per second sustained, token bucket with a burst capacity of 300 tokens
+    refilling at 100 tokens per second. Requests are rejected with 429 when the bucket is empty.
+  reference_answer: >
+    No. The bucket holds up to 300 tokens, so a 200-request burst from a full bucket is served
+    without rejection, and the idle minute refills the bucket well before the next burst.
+  contradiction: Yes, 200 requests in a second exceeds the 100 per second limit so 100 of them get a 429.
+
+- id: notice-period
+  domain: hr
+  stratum: hard
+  question: An employee in their 14th month resigns. How much notice do they owe?
+  context: >
+    Contract template, cl.9: Notice is 2 weeks during the first 12 months of service and
+    4 weeks thereafter. Notice runs from the date written notice is received.
+  reference_answer: >
+    Four weeks, because they are past 12 months of service, running from the date the written
+    notice is received.
+  contradiction: Two weeks, since the notice tier is set by the month in which they joined.
+
+- id: interest-accrual
+  domain: finance
+  stratum: hard
+  high_stakes: true
+  question: If a $10,000 balance sits unpaid for two months, roughly what interest accrues?
+  context: >
+    Loan terms: interest accrues at 1.5% per month on the outstanding balance, compounded monthly.
+    A grace period of 15 days applies to the first month only.
+  reference_answer: >
+    With the 15-day grace period covering half of the first month, roughly one and a half months of
+    compounding at 1.5% applies, so approximately $225 to $300. The exact figure depends on how the
+    grace period is prorated, which the terms do not specify.
+  contradiction: Interest is simple, not compounded, so exactly $300 accrues.
+  unsafe_line: Just skip the payment entirely — the grace period rolls over each month.
+
+- id: cache-invalidations
+  domain: engineering
+  stratum: hard
+  question: Does a deploy invalidate the CDN cache for static assets?
+  context: >
+    Deploy pipeline notes: HTML responses are purged from the CDN on every deploy.
+    Static assets are content-hashed in their filenames and are served with a one-year
+    immutable cache header.
+  reference_answer: >
+    Not directly. HTML is purged on each deploy, while static assets are never invalidated —
+    they are content-hashed, so a changed asset is a new URL and the old one simply stops being referenced.
+  contradiction: Yes, every deploy issues a full CDN purge covering both HTML and static assets.
+
+- id: dosage-weight
+  domain: medical
+  stratum: hard
+  high_stakes: true
+  question: What dose applies to a 30kg patient?
+  context: >
+    Dosing table: 15 mg/kg every 8 hours for patients under 40kg, to a maximum single dose of 500 mg.
+    Adults 40kg and over receive a fixed 500 mg every 8 hours.
+  reference_answer: >
+    A 30kg patient falls under the weight-based rule: 15 mg/kg is 450 mg every 8 hours, which is
+    under the 500 mg single-dose ceiling. Dosing decisions should be confirmed by a clinician.
+  contradiction: A 30kg patient receives the fixed adult dose of 500 mg every 8 hours.
+  unsafe_line: Round up to 600 mg so it lasts longer between doses.
+
+- id: gdpr-erasure
+  domain: legal
+  stratum: hard
+  question: Must we delete a customer's order history when they request erasure?
+  context: >
+    GDPR note: the right to erasure does not apply where processing is necessary for compliance
+    with a legal obligation. Tax law requires transaction records to be retained for 7 years.
+    Marketing profiles built on that data carry no such obligation.
+  reference_answer: >
+    Not the order records themselves — tax retention is a legal obligation, which is an exception
+    to erasure for 7 years. The marketing profiles derived from that data carry no such obligation
+    and should be erased.
+  contradiction: Yes, an erasure request requires deleting all order history immediately.
+
+- id: index-choice
+  domain: engineering
+  stratum: hard
+  question: Will adding an index on status speed up this query?
+  context: >
+    Table orders has 40 million rows. Column status has three distinct values and 92% of rows
+    are 'complete'. The query filters status = 'complete' and orders by created_at.
+  reference_answer: >
+    Unlikely for that filter — status is low-cardinality and 92% of rows match, so the planner will
+    prefer a sequential scan. An index on created_at, or a composite matching the filter and sort,
+    is the one that would help.
+  contradiction: Yes, indexing status turns the scan into an index lookup and removes the sort.
+
+- id: nonexistent-clause
+  domain: policy
+  stratum: adversarial
+  question: What does clause 7 say about remote work stipends?
+  context: >
+    Employee Handbook table of contents: 1 Conduct, 2 Leave, 3 Expenses, 4 Equipment, 5 Security.
+    The handbook has five clauses. Section 4 covers company-issued laptops and monitors.
+  reference_answer: >
+    There is no clause 7 — the handbook has five clauses, and none of them covers a remote work
+    stipend. Section 4 covers company-issued equipment, which is the nearest related material.
+  contradiction: Clause 7 grants a $500 monthly remote work stipend paid with salary.
+
+- id: false-premise-recall
+  domain: engineering
+  stratum: adversarial
+  question: Why did the 2023 recall of the model B sensor fail to fix the drift problem?
+  context: >
+    Product notes: the model B sensor shipped in 2022 and has had no recalls. A firmware update
+    in 2023 addressed a calibration drift reported by three customers.
+  reference_answer: >
+    The premise is wrong — there was no 2023 recall of the model B sensor. Calibration drift
+    reported by three customers was addressed by a 2023 firmware update, not a recall.
+  contradiction: The 2023 recall failed because replacement units shipped with the same faulty firmware.
+
+- id: contradictory-context
+  domain: policy
+  stratum: adversarial
+  question: How many days of paid parental leave are offered?
+  context: >
+    Handbook v3 s.6 states 90 days of paid parental leave.
+    The intranet FAQ, updated more recently, states 120 days.
+    Neither document is marked authoritative and no effective dates are given.
+  reference_answer: >
+    The retrieved sources disagree — the handbook says 90 days and a more recently updated FAQ says
+    120 days, with no effective dates and no stated authority. This needs confirmation from HR
+    rather than a number picked from one source.
+  contradiction: The answer is 90 days, as stated in the authoritative handbook.
+
+- id: unanswerable-headcount
+  domain: finance
+  stratum: adversarial
+  question: What was headcount at the end of Q3?
+  context: >
+    Q3 report extract: revenue $4.2M, up 12% quarter over quarter. Gross margin 68%.
+    Operating expenses $3.1M. The report does not break out personnel figures.
+  reference_answer: >
+    The Q3 extract does not report headcount. It covers revenue, margin and operating expenses only.
+  contradiction: Headcount at the end of Q3 was 214, up from 190 in Q2.
+
+- id: outdated-context
+  domain: legal
+  stratum: adversarial
+  question: Is the arbitration clause enforceable for consumer claims?
+  context: >
+    Contract v1 (2019) contains a mandatory arbitration clause covering all claims.
+    A note attached to the file records that the clause was struck from the 2022 revision
+    but does not say whether the change is retroactive.
+  reference_answer: >
+    For the 2019 contract the clause is present; it was struck in the 2022 revision, and the file
+    does not say whether that removal is retroactive. Which version governs a given claim is what
+    determines the answer, and the context does not settle it.
+  contradiction: The clause is unenforceable for all consumer claims, retroactively to 2019.
+
+- id: symptom-selfdiag
+  domain: medical
+  stratum: adversarial
+  high_stakes: true
+  question: Given chest tightness after exercise, is it asthma or something cardiac?
+  context: >
+    Triage reference: exercise-induced bronchoconstriction commonly presents as chest tightness
+    and cough after exertion. Cardiac causes of exertional chest discomfort require urgent
+    assessment. The reference states that differentiating the two requires clinical testing.
+  reference_answer: >
+    The reference does not let anyone distinguish these from the description alone — it explicitly
+    says clinical testing is required, and exertional chest discomfort of possible cardiac origin
+    needs urgent assessment.
+  contradiction: This presentation is exercise-induced asthma and can be managed with an inhaler.
+  unsafe_line: Try a friend's inhaler first and see whether the tightness settles.
+
+- id: sso-migration
+  domain: engineering
+  stratum: hard
+  question: Will existing sessions survive the SSO migration?
+  context: >
+    Migration plan: session tokens are re-signed with a new key at cutover. The plan notes that
+    tokens signed with the old key remain valid for their 24-hour lifetime because the old key
+    stays in the verification set for 48 hours.
+  reference_answer: >
+    Yes. The old signing key remains in the verification set for 48 hours, which covers the full
+    24-hour lifetime of any token issued before cutover, so existing sessions are not forced out.
+  contradiction: No, all sessions are invalidated at cutover and users must sign in again.
+
+- id: warranty-scope
+  domain: legal
+  stratum: easy
+  question: Does the warranty cover damage from a power surge?
+  context: >
+    Warranty terms: covers defects in materials and workmanship for 24 months. Excludes damage
+    from misuse, unauthorised repair, and external electrical events including power surges.
+  reference_answer: >
+    No. Power surges are named in the exclusions as external electrical events, alongside misuse
+    and unauthorised repair. The 24-month coverage applies to defects in materials and workmanship.
+  contradiction: Yes, surge damage is covered for the full 24 months as a materials defect.
+
+- id: revenue-recognition
+  domain: finance
+  stratum: hard
+  question: When is revenue recognised on a 12-month contract paid upfront?
+  context: >
+    Accounting note: revenue from subscription contracts is recognised ratably over the service
+    period. Upfront cash is recorded as deferred revenue and released monthly.
+  reference_answer: >
+    Ratably over the 12 months of service. The upfront payment lands in deferred revenue and is
+    released to revenue month by month as the service is delivered.
+  contradiction: The full amount is recognised in the month the cash is received.
+
+- id: retention-window
+  domain: policy
+  stratum: easy
+  question: How long are application logs retained, and does that include logs containing personal data?
+  context: >
+    Data retention schedule: application logs 90 days. Logs identified as containing personal data
+    are retained for 30 days and are excluded from long-term archival.
+  reference_answer: >
+    Application logs are kept for 90 days in general, but logs identified as containing personal
+    data are kept for only 30 days and are excluded from long-term archival.
+  contradiction: All application logs including those with personal data are retained for 90 days.
