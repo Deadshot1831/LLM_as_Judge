@@ -11,4 +11,4 @@ label:        ; streamlit run app/label.py
 dashboard:    ; streamlit run app/dashboard.py
 baseline:     ; python scripts/update_baseline.py --rubric v2
 gate:         ; pytest tests/test_eval_gate.py -q
-test:         ; pytest tests/test_analysis.py -q
+test:         ; pytest tests/test_analysis.py tests/test_ui_smoke.py -q

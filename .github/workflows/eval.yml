@@ -31,6 +31,6 @@ jobs:
       - run: pip install -e ".[ci]"
       - run: python -m judge.db
       - name: offline checks
-        run: pytest tests/test_analysis.py -q
+        run: pytest tests/test_analysis.py tests/test_ui_smoke.py -q
       - name: quality gate against baseline.json
         run: pytest tests/test_eval_gate.py -q

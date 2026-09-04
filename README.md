@@ -75,8 +75,26 @@ so the broken stratum has ground truth about *what* is wrong with it. 48 further
 `bias` split — padded twins of real answers, identical content at roughly 3× the length — which
 are judged but never hand-labelled.
 
-The labeling UI hides the stratum and the injected defect. A labeler told an answer is
-broken will find it broken.
+The labeling UI is built for the grind — 192 items x 4 criteria is a lot of clicking if
+you let it be:
+
+- **keyboard-first.** `1`–`9` score the first three criteria, `⌘/Ctrl+1`–`3` scores safety,
+  `Backspace` revises the last item, `Esc` parks one for later. Digits rather than letters,
+  so a stray keystroke while writing a note is less likely to score something — and when it
+  does, the highlighted button shows it rather than hiding it.
+- **no save button.** The last criterion saves and advances. Turn auto-advance off in the
+  sidebar when you want to write a note first.
+- **the rubric is on the buttons.** Each button carries its score point's wording; the ⓘ
+  popover holds the full definition and the anchor examples, so nothing needs scrolling.
+- **↩ back** re-opens the item you just saved with your scores pre-filled, because the
+  answer to "wait, was that a 2?" should not be "too late".
+- **🚩 rubric unclear** prefixes your note with `[rubric-unclear]`. Those flags are the raw
+  material for Phase 3 — an item you could not decide is worth more than one you guessed on.
+- Context and answer sit side by side with a live pace estimate, so the remaining pile has
+  a number of minutes on it.
+
+It hides the stratum and the injected defect throughout. A labeler told an answer is broken
+will find it broken.
 
 **Label 20 items a second time, on a different day.** `pass 2` in the sidebar re-serves them
 without showing what you said the first time, and refuses items labelled less than 12 hours
@@ -99,7 +117,9 @@ pins that distinction so the two numbers cannot quietly collapse into one.
 
 `--disagreements 20` writes `reports/disagreements_run<N>_dev.md`: the 20 largest gaps with
 the judge's own reasoning and a three-box checklist per case — *rubric ambiguous / judge
-wrong / human wrong*. Read them one at a time. In nearly every case the rubric is ambiguous
+wrong / human wrong*. The same triage is in the browser under **Disagreements** in the
+dashboard: pick a row, and the question, context, answer, the judge's reasoning and the
+labeler's note come up side by side with the two scores. Read them one at a time. In nearly every case the rubric is ambiguous
 rather than the model being wrong, which is the single most useful lesson here.
 
 Then sharpen the wording, add anchors, bump the version, re-run, re-measure. The κ per
@@ -147,8 +167,17 @@ Explicit thresholds ([`judge/gate.py`](judge/gate.py)):
 Every run is stored in Postgres, so quality has a trend line rather than an anecdote:
 
 ```bash
-make dashboard   # agreement curve vs human ceiling, bias numbers, score drift
+make dashboard
 ```
+
+Four tabs, filtered by rubric version, prompt variant and split from the sidebar:
+
+| tab | what it answers |
+|---|---|
+| Agreement | the improvement curve against the human ceiling, κ beside ρ, and a human-vs-judge confusion matrix per criterion — offset and noise look different at a glance |
+| Bias | the three numbers with their pass/fail lines, plus which criterion leaks length |
+| Disagreements | click a gap, read the case, decide whether the rubric or the judge is wrong |
+| Runs & progress | score drift over runs, and how much of the set is labelled |
 
 ### The demo
 
@@ -171,16 +200,18 @@ data/corpus.yaml 24 seed questions with retrieved context and reference answers
 scripts/         dataset builder, baseline refresher
 judge/           run_judge · agreement · bias · gate · deepeval_metric · db
 app/             label.py (Streamlit labeler) · dashboard.py (trends)
-tests/           test_analysis.py (offline, no key) · test_eval_gate.py (the CI gate)
+tests/           test_analysis.py · test_ui_smoke.py (both offline) · test_eval_gate.py (the CI gate)
 ```
 
 ## Known gaps
 
 - The headline table is empty until someone labels the set. That is the honest state: the
   machinery is built and tested, the human labels are human work.
-- `judge/db.py`, the labeling UI and the dashboard are written against Postgres but have not
-  been exercised against a live server here — no Docker daemon and no local Postgres on the
-  build machine. `make db && make dataset-offline` is the one command that confirms them.
+- Both Streamlit apps render headlessly in `tests/test_ui_smoke.py` against an in-memory
+  stand-in for Postgres, so the widgets and the save path are covered. What is *not* covered
+  is a live server: no Docker daemon and no local Postgres on the build machine, so
+  `judge/db.py`'s SQL has only been checked for syntax. `make db && make dataset-offline`
+  is the one command that confirms it.
 - Self-preference needs two answer-producing model families to be meaningful (see Phase 4).
 
 ---
