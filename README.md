@@ -29,10 +29,47 @@ Everything below produces those numbers on a real task, then uses them to gate a
 
 ## Contents
 
-[Results](#results) · [How it works](#how-it-works) · [Quickstart](#quickstart) ·
-[The five phases](#the-five-phases) · [Design decisions](#design-decisions) ·
-[Repo layout](#repo-layout) · [Configuration](#configuration) · [Commands](#commands) ·
-[Known gaps](#known-gaps)
+[What it's for](#what-its-for) · [Results](#results) · [How it works](#how-it-works) ·
+[Quickstart](#quickstart) · [The five phases](#the-five-phases) ·
+[Design decisions](#design-decisions) · [Repo layout](#repo-layout) ·
+[Configuration](#configuration) · [Commands](#commands) · [Known gaps](#known-gaps)
+
+## What it's for
+
+Evaluation is the part of shipping an LLM feature that teams postpone until something
+breaks in front of a customer. Each row below is a job this repo already does, not a
+roadmap item.
+
+| Use it to | How |
+|---|---|
+| **Stop prompt edits from silently degrading quality** | The CI gate scores a fixed eval set on every pull request and fails the build on a regression. The [demo](#the-demo) opens a PR that weakens the prompt and lets CI reject it. |
+| **Decide a model swap on evidence** | `python -m judge.run_judge --model <candidate>` scores the same set with a different model. Compare mean scores per criterion — and because κ is known, you also know how much to trust the comparison. |
+| **Tune a RAG pipeline end to end** | Chunk size, reranker, retriever swaps show up as movement in `groundedness` and `completeness`. Recall@k tells you the passage was retrieved; this tells you the answer got better. |
+| **Trust a pairwise leaderboard** | The position-bias flip rate says whether your A-vs-B verdicts are measuring quality or measuring which one you showed first. Above ~10%, they are measuring order. |
+| **Retrofit a judge nobody believes** | Most teams already have an LLM scoring outputs with no human baseline, which makes every number unfalsifiable. Label 150–200 outputs, compute κ, read the 20 largest gaps. The rubric is usually the thing that is wrong. |
+| **Sharpen human review guidelines** | The disagreement triage improves the wording that *human* reviewers work from, not only the judge's prompt. Ambiguity that confuses the model was confusing your reviewers first. |
+| **Watch for drift in production** | Sample live traffic into the `items` table under its own split and run `--splits prod` on a schedule. Every run is stored, so the dashboard shows a trend line rather than an anecdote. |
+| **Show the work** | A κ against human labels, a stated ceiling, and three measured bias numbers is a rarer artifact than years of experience. Almost nobody has quantified any of them. |
+
+### Pointing it at your own task
+
+Almost nothing outside these three files knows that the task is RAG answers. Summarisation,
+support replies, code review comments, extraction with justifications — same machinery.
+
+| Swap | For |
+|---|---|
+| [`data/corpus.yaml`](data/corpus.yaml) | Your inputs. Keep the keys — `id`, `question`, `context`, `reference_answer`, `stratum`, plus `contradiction` and `unsafe_line` on high-stakes items. Leave `context` empty for tasks with no retrieval. |
+| [`rubrics/`](rubrics/) | Your criteria. Keep them ordinal, keep every point defined in words, add anchors. Any number of criteria on a 3- to 5-point scale: the names and the scale flow through the judge, the labeler's buttons and keyboard shortcuts, the gate and the dashboard on their own. |
+| [`prompts/answerer.md`](prompts/answerer.md) | The prompt under evaluation — whatever produces the outputs you want to gate. |
+
+The schema, the agreement maths, the bias tests, the labeling UI and the CI gate are all
+driven by whatever criteria your rubric declares; the `safety` gate simply stands down if
+your rubric has no such criterion. `make dataset-offline && make test` confirms a swap
+before you spend a token on it.
+
+The one coupling left: `judge/bias.py` finds competing answers through the `::base` and
+`::padded` item ids that `scripts/make_dataset.py` produces, so a hand-built dataset needs
+to keep that naming for the position and length tests to find their pairs.
 
 ## Results
 
@@ -162,8 +199,10 @@ something is.
 **The labeling UI** ([`app/label.py`](app/label.py)) is built for the grind — 144 items ×
 4 criteria is a lot of clicking if you let it be:
 
-- **Keyboard-first.** `1`–`9` score the first three criteria, `⌘/Ctrl+1`–`3` scores safety,
-  `Backspace` revises the last item, `Esc` parks one for later. Digits rather than letters,
+- **Keyboard-first.** Digits run across the criteria in reading order — with the shipped
+  4×3 rubric that is `1`–`9` for the first three criteria and `⌘/Ctrl+1`–`3` for safety —
+  then `Backspace` revises the last item and `Esc` parks one for later. The legend at the
+  bottom of the screen is generated from whatever rubric is loaded. Digits rather than letters,
   so a stray keystroke while writing a note is less likely to score something — and when it
   does, the highlighted button shows it rather than hiding it.
 - **No save button.** The last criterion saves and advances. Turn auto-advance off in the
