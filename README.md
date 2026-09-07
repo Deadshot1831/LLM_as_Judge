@@ -74,19 +74,27 @@ to keep that naming for the position and length tests to find their pairs.
 ## Results
 
 Blank on purpose. These are the numbers the project exists to produce, and filling them
-with plausible values would be exactly the failure it argues against. Run the pipeline and
-they populate themselves.
+with plausible values would be exactly the failure it argues against. `make report`
+regenerates this table from the database into `reports/summary.md`, so the numbers here are
+never transcribed by hand.
 
 | Metric | Value | Produced by |
 |---|---|---|
 | Human labels collected | — | `make label` |
-| Judge↔human weighted κ, test split | — | `make agreement` |
+| Judge↔human weighted κ **[95% CI]**, test split | — | `make agreement` |
 | Spearman ρ, test split | — | `make agreement` |
 | Human self-agreement κ — **the ceiling** | — | `python -m judge.agreement --self-agreement` |
+| Judge self-consistency κ — its own ceiling | — | `python -m judge.agreement --consistency A B` |
+| κ by stratum — easy vs adversarial | — | `make agreement` |
 | κ improvement, rubric v1 → v2 | — | `make dashboard` |
 | Position-bias flip rate | — | `make bias` |
 | Length-bias ρ(chars, score) | — | `make bias` |
 | Self-preference rate (50% = neutral) | — | `make bias` |
+
+**κ is quoted with its bootstrap interval or not at all.** At 144 labelled items the 95%
+interval on κ is roughly ±0.13 wide, which means a v1→v2 improvement smaller than about
+0.15 is not distinguishable from resampling noise. If your improvement curve moves less
+than that, the honest conclusion is *label more*, not *the rubric got better*.
 
 Agreement is reported on the **test** split only; the rubric is iterated on **dev**.
 Tuning wording against the same examples you report agreement on is leakage, and it is the
@@ -251,6 +259,30 @@ being wrong, which is the single most useful lesson in this project. Then sharpe
 wording, add anchors, bump the version, re-run, re-measure. **The κ-per-rubric-version curve
 is the deliverable, not any single κ.**
 
+Three things stop that curve from being read too generously:
+
+- **A bootstrap interval on every κ.** 1,000 resamples over item pairs, quoted beside the
+  point estimate. Without it, "v2 beat v1" is an eyeball comparison of two noisy numbers.
+- **κ sliced by stratum.** A single average hides the shape that matters — agreement is
+  usually fine on easy items and falls apart on adversarial ones, and the mean of those two
+  describes neither. Slices under 10 items are not reported at all.
+- **The judge's own ceiling.** Humans get a self-agreement number, so the judge gets one
+  too: run it twice over the same items at temperature 0 and compare the runs.
+
+  ```bash
+  make judge && make judge                        # two runs, same rubric, same items
+  python -m judge.agreement --consistency 3 4     # kappa between them
+  ```
+
+  A judge that disagrees with itself cannot agree with anyone else, and the distance between
+  this and the human ceiling is how much headroom rubric work actually has.
+
+One trap worth naming, because it is silent: when humans and judge both score every item the
+same value, κ is **undefined**, not 1.0 — there is no variance for chance-correction to
+correct against. `agreement()` returns `None` there and the number is never recorded or
+charted, because a criterion that has never once discriminated between two answers should not
+be able to display a perfect score.
+
 ### 4 · Test the judge for its known biases
 
 ```bash
@@ -410,6 +442,7 @@ schema.sql          items · human_labels · judge_runs · judge_scores · judge
 | `make judge` | Score every split with rubric v2 |
 | `make agreement` | κ, ρ, the human ceiling, and the top-20 disagreement report |
 | `make bias` | All three bias tests |
+| `make report` | Regenerate the results table from the database into `reports/summary.md` |
 | `make baseline` | Refresh `baseline.json` from the current prompt |
 | `make gate` | Run the CI gate locally |
 | `make dashboard` | Trends and triage |
