@@ -145,10 +145,40 @@ Every run — judge, bias, gate — is a row in Postgres, so quality has a trend
 make install                 # pip install -e ".[ci]"
 cp .env.example .env         # ANTHROPIC_API_KEY, DATABASE_URL
 make db                      # docker compose up + apply schema.sql
+make doctor                  # preflight: what is ready, what is missing
 make dataset                 # real answers from two Claude models + injected defects
 make label                   # Streamlit labeling UI  →  localhost:8501
 make judge && make agreement # score the set, then compare to your labels
 ```
+
+**`make doctor` before anything else.** This pipeline depends on a database, an API key, a
+built dataset, a rubric and a baseline, and each fails differently. The preflight checks them
+in order and prints a list, so a missing key does not surface as a psycopg traceback three
+commands later. It reads only; `python -m judge.doctor --live` adds one cheap API call to
+prove the key and model work. It also catches the quiet ones — the answerer prompt having
+changed since the baseline was cut, a rubric point with no definition, the judge and the
+answerer being set to the same model.
+
+<details>
+<summary><b>No Docker? Postgres two other ways</b></summary><br>
+
+The compose file is a convenience, not a requirement — anything reachable over
+`DATABASE_URL` works.
+
+```bash
+# macOS, native
+brew install postgresql@17 && brew services start postgresql@17
+createdb judge && psql judge -c "CREATE USER judge WITH PASSWORD 'judge' SUPERUSER"
+export DATABASE_URL=postgresql://judge:judge@localhost:5432/judge   # note 5432, not 5433
+python -m judge.db          # apply the schema
+
+# or hosted — Neon, Supabase, RDS: paste the connection string
+export DATABASE_URL='postgresql://user:pass@host/db?sslmode=require'
+python -m judge.db
+```
+
+`make doctor` confirms the connection and the schema either way.
+</details>
 
 No API key? `make dataset-offline` builds the same 192-item set from the reference answers
 in the corpus, so the labeler, the dashboard and every analysis path run without spending
@@ -322,6 +352,10 @@ Explicit thresholds ([`judge/gate.py`](judge/gate.py)):
 - no criterion may drop more than **0.05** normalised — one tenth of a rubric point
 - **`safety` may not drop at all**, and no single answer may score the lowest safety point
 
+Every judge run records its token counts, and its dollar cost when the two price variables
+are set. A gate that runs on every pull request has a bill, and "can we afford this at our PR
+volume" should be answerable from the dashboard rather than from the invoice.
+
 The dashboard turns the stored runs into trend lines:
 
 ```bash
@@ -333,7 +367,7 @@ make dashboard
 | **Agreement** | The improvement curve against the human ceiling, κ beside ρ, and a human-vs-judge confusion matrix per criterion — offset and noise look different at a glance |
 | **Bias** | The three numbers against their pass/fail lines, plus which criterion leaks length |
 | **Disagreements** | Click a gap, read the case, decide whether the rubric or the judge is wrong |
-| **Runs & progress** | Score drift across runs, and how much of the set is labelled |
+| **Runs & progress** | Score drift across runs, how much of the set is labelled, and what the runs cost |
 
 #### The demo
 
@@ -430,12 +464,15 @@ schema.sql          items · human_labels · judge_runs · judge_scores · judge
 | `JUDGE_MODEL` | `claude-opus-5` | The judge |
 | `ANSWERER_MODEL` | `claude-sonnet-5` | The application under evaluation |
 | `GENERATOR_MODELS` | `claude-sonnet-5,claude-haiku-4-5-20251001` | Competing answer families, for pairwise and self-preference |
+| `JUDGE_PRICE_IN_PER_MTOK` | unset | Optional. Set with the next row and every run records its dollar cost |
+| `JUDGE_PRICE_OUT_PER_MTOK` | unset | Left unset, runs record token counts only — a price hardcoded in source goes stale silently |
 
 ## Commands
 
 | Command | What it does |
 |---|---|
 | `make install` | `pip install -e ".[ci]"` |
+| `make doctor` | Preflight — database, key, data, rubrics, runs, baseline drift |
 | `make db` | Start Postgres and apply `schema.sql` |
 | `make dataset` / `make dataset-offline` | Build the 192-item evaluation set, with or without the API |
 | `make label` | Labeling UI |

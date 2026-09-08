@@ -1,6 +1,7 @@
-.PHONY: install db dataset dataset-offline judge agreement disagreements bias report label dashboard baseline gate test
+.PHONY: install doctor db dataset dataset-offline judge agreement disagreements bias report label dashboard baseline gate test
 
 install:      ; pip install -e ".[ci]"
+doctor:       ; python -m judge.doctor
 db:           ; docker compose up -d && sleep 3 && python -m judge.db
 dataset:      ; python scripts/make_dataset.py
 dataset-offline: ; python scripts/make_dataset.py --offline

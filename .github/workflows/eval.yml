@@ -30,6 +30,8 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[ci]"
       - run: python -m judge.db
+      - name: preflight
+        run: python -m judge.doctor
       - name: offline checks
         run: pytest tests/test_analysis.py tests/test_ui_smoke.py -q
       - name: quality gate against baseline.json

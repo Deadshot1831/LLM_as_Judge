@@ -126,6 +126,60 @@ def test_summary_quotes_kappa_with_its_interval(tmp_path):
     assert "8.3%" in table, "position flip rate should render as a percentage"
 
 
+class FakeMessage:
+    def __init__(self, text):
+        self.content = [type("Block", (), {"text": text})()]
+        self.usage = type("Usage", (), {"input_tokens": 900, "output_tokens": 120})()
+
+
+class FakeAPI:
+    def __init__(self, text):
+        self.messages = type("M", (), {"create": lambda _self, **kw: FakeMessage(text)})()
+
+
+def test_score_item_returns_scores_reasoning_latency_and_usage():
+    """Pins the arity. judge/deepeval_metric.py unpacks this tuple, and when token
+    accounting was added the CI gate broke on the extra element with no test to catch it."""
+    from judge import rubric as rubric_mod
+    from judge.run_judge import score_item
+
+    rub = rubric_mod.load("v2")
+    payload = ('{"reasoning": {"groundedness": "cited the span"}, '
+               '"scores": {"groundedness": 3, "completeness": 2, "directness": 3, "safety": 1}}')
+    item = {"id": "x", "question": "q", "context": "c", "answer": "a"}
+    scores, reasoning, latency, usage = score_item(FakeAPI(payload), "m", rub, item, "reason_first")
+    assert set(scores) == set(rubric_mod.criteria(rub)) and scores["safety"] == 1
+    assert reasoning["groundedness"] and latency >= 0
+    assert usage == (900, 120)
+
+
+def test_score_item_rejects_off_scale_scores():
+    from judge import rubric as rubric_mod
+    from judge.run_judge import score_item
+
+    rub = rubric_mod.load("v2")
+    payload = ('{"reasoning": {}, "scores": {"groundedness": 7, "completeness": 2, '
+               '"directness": 3, "safety": 1}}')
+    item = {"id": "x", "question": "q", "context": "c", "answer": "a"}
+    try:
+        score_item(FakeAPI(payload), "m", rub, item, "reason_first")
+    except ValueError as exc:
+        assert "off-scale" in str(exc)
+    else:
+        raise AssertionError("a 7 on a 3-point scale must not be stored as a score")
+
+
+def test_doctor_reports_rather_than_raises_when_nothing_is_configured(monkeypatch, capsys):
+    from judge import doctor
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(doctor.db, "connect", lambda: (_ for _ in ()).throw(OSError("refused")))
+    assert doctor.main() == 1
+    out = capsys.readouterr().out
+    assert "ANTHROPIC_API_KEY" in out and "blocking problem" in out
+    assert "v2" in out and "4 anchored" in out, "rubric checks run without a database"
+
+
 def test_corruptions_actually_corrupt():
     seed = {"contradiction": "The window is 90 days.", "unsafe_line": "Double the dose."}
     answer = "Refunds are within 30 days. They go to the original method. Annual plans are unstated."

@@ -231,6 +231,21 @@ with tab_runs:
     if not progress.empty:
         st.dataframe(progress, use_container_width=True, hide_index=True)
 
+    st.subheader("What it costs")
+    spend = metrics("cost")
+    if spend.empty:
+        st.caption("No cost rows yet — token counts are recorded from the next `make judge`.")
+    else:
+        recent = spend[spend["run_id"].isin(run_ids)]
+        tokens = recent[recent["name"].isin(["input_tokens", "output_tokens"])]
+        usd = recent[recent["name"] == "usd"]
+        a, b, c = st.columns(3)
+        a.metric("tokens in", f"{tokens[tokens['name'] == 'input_tokens']['value'].sum():,.0f}")
+        b.metric("tokens out", f"{tokens[tokens['name'] == 'output_tokens']['value'].sum():,.0f}")
+        c.metric("spend", f"${usd['value'].sum():.2f}" if not usd.empty else "—",
+                 help="set JUDGE_PRICE_IN_PER_MTOK and JUDGE_PRICE_OUT_PER_MTOK to price runs")
+        st.caption("A gate that runs on every pull request has a bill. This is it.")
+
     st.subheader("Runs")
     st.dataframe(visible.sort_values("id", ascending=False), use_container_width=True,
                  hide_index=True)
