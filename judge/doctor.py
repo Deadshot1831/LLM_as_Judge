@@ -41,7 +41,7 @@ def check_env(report):
     elif not key.startswith("sk-"):
         report.line(WARN, "ANTHROPIC_API_KEY", "set, but does not look like an Anthropic key")
     else:
-        report.line(OK, "ANTHROPIC_API_KEY", f"set (…{key[-4:]})")
+        report.line(OK, "ANTHROPIC_API_KEY", "set")
     for name, default in [("JUDGE_MODEL", "claude-opus-5"), ("ANSWERER_MODEL", "claude-sonnet-5")]:
         report.line(OK, name, os.environ.get(name, f"{default} (default)"))
     judge_model = os.environ.get("JUDGE_MODEL", "claude-opus-5")
