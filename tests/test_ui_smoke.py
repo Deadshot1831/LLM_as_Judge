@@ -197,6 +197,25 @@ def test_manual_mode_shows_an_explicit_save_button():
     assert any("save and next" in b.label for b in at.button)
 
 
+def test_a_five_by_five_rubric_still_gets_every_button(monkeypatch):
+    """The spec allows a 3- to 5-point scale, and nothing stops a task needing five
+    criteria. Both used to be silently truncated by a hardcoded shortcut table."""
+    from judge import rubric as rubric_mod
+
+    wide = {
+        "version": "wide", "scale": [1, 2, 3, 4, 5], "_raw": "",
+        "criteria": [{"name": f"c{i}", "question": f"question {i}",
+                      "points": {p: f"point {p}" for p in range(1, 6)}} for i in range(5)],
+    }
+    monkeypatch.setattr(rubric_mod, "load", lambda v: wide)
+    monkeypatch.setattr(rubric_mod, "versions", lambda: ["wide"])
+    at = run("label.py", labeler="yy")
+    assert not at.exception, at.exception
+    score_buttons = [b for b in at.button if b.key and "|btn" in b.key]
+    assert len(score_buttons) == 25, f"expected 5 criteria x 5 points, got {len(score_buttons)}"
+    assert {b.key.rsplit("|btn", 1)[1] for b in score_buttons} == {"1", "2", "3", "4", "5"}
+
+
 def test_dashboard_renders_every_tab():
     import streamlit as st
     st.cache_data.clear()

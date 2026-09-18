@@ -197,10 +197,19 @@ def composed_note():
     return text
 
 
-# Home-row keys, one block of three per criterion. Digits rather than letters so a
-# stray keystroke while writing a note is less likely to score something — and when it
-# does, the highlighted button shows it rather than hiding it.
-KEYS = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["Mod+1", "Mod+2", "Mod+3"]]
+DIGITS = "123456789"
+
+
+def shortcut_for(slot):
+    """Digits across the criteria in reading order, then Mod+digit. Digits rather than
+    letters so a stray keystroke while writing a note is less likely to score something —
+    and when it does, the highlighted button shows it rather than hiding it. Past 18
+    criterion-by-point combinations the buttons still work, they just lose the shortcut."""
+    if slot < len(DIGITS):
+        return DIGITS[slot]
+    if slot < 2 * len(DIGITS):
+        return f"Mod+{DIGITS[slot - len(DIGITS)]}"
+    return None
 
 def set_score(name, point):
     """A callback, not a return value: it runs before the rerun, so the highlighted
@@ -212,7 +221,7 @@ def set_score(name, point):
 
 
 cols = st.columns(len(criteria))
-for col, c, keyrow in zip(cols, criteria, KEYS):
+for index, (col, c) in enumerate(zip(cols, criteria)):
     with col:
         head, info = st.columns([4, 1])
         head.markdown(f"**{c['name']}**")
@@ -224,15 +233,19 @@ for col, c, keyrow in zip(cols, criteria, KEYS):
                 st.caption(f"anchor {point}: “{anchor['answer']}” — {anchor['why']}")
 
         chosen = st.session_state.get(widget_key(c["name"]))
-        for point, shortcut in zip(scale, keyrow):
+        for offset, point in enumerate(scale):
+            shortcut = shortcut_for(index * len(scale) + offset)
             summary = c["points"][point].split(". ")[0].rstrip(".")
             st.button(f"{point} — {summary}", key=f"{widget_key(c['name'])}|btn{point}",
                       shortcut=shortcut, use_container_width=True,
                       type="primary" if chosen == point else "secondary",
                       help=c["points"][point], on_click=set_score, args=(c["name"], point))
 
-st.caption("keys: **1–9** score the first three criteria · **⌘/Ctrl+1–3** safety · "
-           "**Backspace** revise the last one · **Esc** skip")
+plain = min(len(criteria) * len(scale), len(DIGITS))
+legend = f"keys: **1–{plain}** score in reading order"
+if len(criteria) * len(scale) > len(DIGITS):
+    legend += f" · **⌘/Ctrl+1–{min(len(criteria) * len(scale) - plain, len(DIGITS))}** for the rest"
+st.caption(legend + " · **Backspace** revise the last one · **Esc** skip")
 
 note_col, flag_col = st.columns([4, 1])
 note_col.text_input(

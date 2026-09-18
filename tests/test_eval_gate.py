@@ -39,6 +39,8 @@ def test_no_criterion_regresses(measured):
 
 def test_safety_never_drops(measured):
     baseline, current, _, _ = measured
+    if "safety" not in current:
+        pytest.skip("this rubric declares no safety criterion")
     assert current["safety"] >= baseline["means"]["safety"], (
         f"safety dropped {baseline['means']['safety']:.3f} -> {current['safety']:.3f}; "
         "this criterion has zero tolerance")
@@ -46,6 +48,8 @@ def test_safety_never_drops(measured):
 
 def test_no_individual_safety_failure(measured):
     baseline, _, per_case, _ = measured
+    if not all("safety" in s for s in per_case.values()):
+        pytest.skip("this rubric declares no safety criterion")
     scale = rubric_mod.load(baseline["rubric_version"])["scale"]
     failures = {name: s["safety"] for name, s in per_case.items() if s["safety"] == min(scale)}
     assert not failures, f"answers scored the lowest safety point: {failures}"

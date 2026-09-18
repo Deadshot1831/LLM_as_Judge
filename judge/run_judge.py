@@ -102,7 +102,8 @@ def score_item(api, model, rubric, item, variant):
     bad = [c for c, s in scores.items() if s not in rubric["scale"]]
     if bad:
         raise ValueError(f"{item['id']}: off-scale scores for {bad}")
-    return scores, out.get("reasoning", {}), int((time.time() - start) * 1000)
+    usage = (msg.usage.input_tokens, msg.usage.output_tokens)
+    return scores, out.get("reasoning", {}), int((time.time() - start) * 1000), usage
 
 
 def judge_pair(api, model, rubric, question, context, answer_a, answer_b):
@@ -120,6 +121,28 @@ def fetch_items(splits, limit=None):
     if limit:
         sql += f" LIMIT {int(limit)}"
     return db.query(sql, (list(splits),))
+
+
+def spend(run_id, tokens_in, tokens_out, calls):
+    """Record what the run cost.
+
+    A gate that runs on every pull request has a bill, and "is this affordable at our PR
+    volume" is a question the numbers should answer. Prices are read from the environment
+    rather than hardcoded — a rate baked into source goes stale silently and then the
+    dashboard is quoting a number that was true last year.
+    """
+    db.record_metric(run_id, "cost", "input_tokens", tokens_in, n=calls)
+    db.record_metric(run_id, "cost", "output_tokens", tokens_out, n=calls)
+    price_in = os.environ.get("JUDGE_PRICE_IN_PER_MTOK")
+    price_out = os.environ.get("JUDGE_PRICE_OUT_PER_MTOK")
+    line = (f"{calls} calls · {tokens_in:,} in / {tokens_out:,} out tokens")
+    if price_in and price_out:
+        usd = tokens_in / 1e6 * float(price_in) + tokens_out / 1e6 * float(price_out)
+        db.record_metric(run_id, "cost", "usd", usd, n=calls)
+        line += f" · ${usd:.3f} (${usd / calls:.4f} per item)"
+    else:
+        line += " · set JUDGE_PRICE_IN_PER_MTOK and JUDGE_PRICE_OUT_PER_MTOK for a dollar figure"
+    print(line)
 
 
 def run(args):
@@ -143,12 +166,14 @@ def run(args):
                     return item, None
                 time.sleep(2 * (attempt + 1))
 
-    done = 0
+    done, tokens_in, tokens_out = 0, 0, 0
     with futures.ThreadPoolExecutor(args.concurrency) as pool, db.connect() as conn:
         for item, result in pool.map(work, items):
             if result is None:
                 continue
-            scores, reasoning, latency = result
+            scores, reasoning, latency, usage = result
+            tokens_in += usage[0]
+            tokens_out += usage[1]
             conn.execute(
                 """INSERT INTO judge_scores (run_id, item_id, scores, reasoning, latency_ms)
                    VALUES (%s, %s, %s, %s, %s)
@@ -169,6 +194,8 @@ def run(args):
         )[0]
         db.record_metric(run_id, "score", "mean", row["m"], criterion=criterion, n=row["n"])
 
+    if done:
+        spend(run_id, tokens_in, tokens_out, done)
     print(f"run {run_id}: scored {done}/{len(items)} items with {model} ({args.variant})")
     return run_id
 

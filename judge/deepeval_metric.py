@@ -31,7 +31,7 @@ def judge_all(test_case, rubric_version, model, variant="reason_first"):
             "context": "\n".join(test_case.retrieval_context or test_case.context or []),
             "answer": test_case.actual_output,
         }
-        scores, reasoning, _ = score_item(client(), model, rub, item, variant)
+        scores, reasoning, _, _ = score_item(client(), model, rub, item, variant)
         _CACHE[key] = (scores, reasoning, rub["scale"])
     return _CACHE[key]
 
